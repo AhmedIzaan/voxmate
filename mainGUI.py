@@ -1,5 +1,5 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QTextEdit, QLabel
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QTextEdit, QLabel
 from PyQt5.QtCore import QThread, QObject, pyqtSignal, Qt
 from voiceToText import listen_and_tokenize
 
@@ -35,23 +35,46 @@ class VoxMateGUI(QWidget):
     def initUI(self):
         # --- Window Properties ---
         self.setWindowTitle('VoxMate - Voice Assistant')
-        self.setGeometry(300, 300, 400, 350) # x, y, width, height
+        self.setGeometry(300, 300, 600, 500) # New, bigger size
 
         # --- Widgets ---
-        self.status_label = QLabel("Click 'Listen' and speak into your microphone.")
-        self.status_label.setAlignment(Qt.AlignCenter) # Center the text
+        self.status_label = QLabel("Click the microphone to start")
+        self.status_label.setAlignment(Qt.AlignCenter)
 
-        self.listen_button = QPushButton('Listen', self)
-        
+        # We use a microphone emoji for a modern look. You can also use "Listen".
+        self.listen_button = QPushButton('🎤', self)
+        # Set a fixed size for the button in the stylesheet for the round effect
+        self.listen_button.setObjectName("ListenButton") 
+
+        self.log_label = QLabel("Conversation Log")
+        self.log_label.setAlignment(Qt.AlignCenter)
+
         self.log_box = QTextEdit(self)
-        self.log_box.setReadOnly(True) 
+        self.log_box.setReadOnly(True)
 
-        # --- Layout ---
-        layout = QVBoxLayout()
-        layout.addWidget(self.status_label)
-        layout.addWidget(self.listen_button)
-        layout.addWidget(self.log_box) # The log box will take most of the space
-        self.setLayout(layout)
+        # --- Layouts ---
+        # Main vertical layout
+        main_layout = QVBoxLayout()
+        
+        # Horizontal layout for the button to center it
+        button_layout = QHBoxLayout()
+        button_layout.addStretch() # Add empty, stretchable space
+        button_layout.addWidget(self.listen_button)
+        button_layout.addStretch() # Add empty, stretchable space
+
+        # Add widgets and layouts to the main layout
+        main_layout.addWidget(self.status_label)
+        main_layout.addLayout(button_layout) # Add the horizontal layout here
+        main_layout.addWidget(self.log_label)
+        main_layout.addWidget(self.log_box)
+
+        # Set stretch factors to give more space to the log box
+        main_layout.setStretch(0, 1) # Status label
+        main_layout.setStretch(1, 2) # Button layout
+        main_layout.setStretch(2, 1) # Log label
+        main_layout.setStretch(3, 6) # Log box (gets the most space)
+
+        self.setLayout(main_layout)
 
     def setup_thread(self):
             # --- Threading Setup ---
@@ -99,33 +122,49 @@ class VoxMateGUI(QWidget):
 # A dark, modern theme for our app
 dark_stylesheet = """
     QWidget {
-        background-color: #2E2E2E;
-        color: #F0F0F0;
-        font-family: Arial, sans-serif;
+        background-color: #2b2b2b;
+        color: #f0f0f0;
+        font-family: "Segoe UI", Arial, sans-serif;
     }
-    QPushButton {
-        background-color: #555555;
-        color: #FFFFFF;
-        border: 1px solid #666666;
-        padding: 8px;
-        border-radius: 4px;
-        font-size: 14px;
+
+    /* Style for the round microphone button */
+    QPushButton#ListenButton {
+        background-color: #0078D7; /* A nice blue */
+        color: white;
+        min-width: 100px;
+        max-width: 100px;
+        min-height: 100px;
+        max-height: 100px;
+        border-radius: 50px; /* half of width/height */
+        border: none;
+        font-size: 48px; /* Make the microphone icon big */
+        padding-bottom: 5px; /* Adjust icon position slightly */
     }
-    QPushButton:hover {
-        background-color: #666666;
+    QPushButton#ListenButton:hover {
+        background-color: #008ae6; /* Lighter blue on hover */
     }
-    QPushButton:pressed {
-        background-color: #444444;
+    QPushButton#ListenButton:pressed {
+        background-color: #005a9e; /* Darker blue when clicked */
     }
+    QPushButton#ListenButton:disabled {
+        background-color: #555555; /* Grey when disabled */
+    }
+    
     QTextEdit {
-        background-color: #1E1E1E;
-        border: 1px solid #444444;
-        border-radius: 4px;
-        font-size: 13px;
-    }
-    QLabel {
+        background-color: #1e1e1e;
+        border: 1px solid #444;
+        border-radius: 8px;
         font-size: 14px;
+        padding: 8px;
+    }
+    
+    QLabel {
+        font-size: 16px;
+    }
+    
+    QLabel#log_label { /* You can style specific labels if needed */
         font-weight: bold;
+        margin-top: 10px;
     }
 """
 
