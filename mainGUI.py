@@ -3,6 +3,7 @@ from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QHB
 from PyQt5.QtCore import QThread, QObject, pyqtSignal, Qt
 from voiceToText import listen_and_tokenize
 from textToVoice import speak
+from commandEngine import process_command
 # --- Worker for Threading ---
 # This class will handle the voice recognition in a separate thread
 class Worker(QObject):
@@ -128,14 +129,23 @@ class VoxMateGUI(QWidget):
             self.listening_thread.start()
 
     def on_recognition_finished(self, tokens):
-        """Runs when the worker successfully finishes."""
+        """
+        This method is now the central hub. It gets the tokens, sends them
+        to the command engine, and speaks the response.
+        """
+        # Log what the user said
         recognized_text = ' '.join(tokens)
-        self.log_box.append(f"✔ You said: {recognized_text}\n")
-        self.status_label.setText("Recognized! Now echoing...")
+        self.log_box.append(f"✔ You said: {recognized_text}")
+
+        # --- COMMAND ENGINE INTEGRATION ---
+        # Send the tokens to the command engine to get a response
+        response_text = process_command(tokens)
         
-        # --- THIS IS THE ECHO PART ---
-        # Now, make the assistant speak the recognized text
-        self.start_speaking(recognized_text)
+        # Log what the assistant is about to say
+        self.log_box.append(f"🤖 VoxMate: {response_text}\n")
+        
+        # Make the assistant speak the response
+        self.start_speaking(response_text)
         
     def on_recognition_error(self, error_message):
         """Runs when the worker encounters an error."""
