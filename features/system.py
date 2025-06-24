@@ -1,31 +1,31 @@
+
 import pyautogui
 import datetime
 import os
+from pathlib import Path  # <-- Import the Path object
+
 
 
 def take_screenshot():
     """
-    Takes a screenshot of the entire screen and saves it to a 'screenshots' folder.
+    TEST VERSION: Tries to save screenshot in the local project folder.
     """
     try:
-        # Create the screenshots directory if it doesn't exist
-        screenshots_dir = "screenshots"
-        os.makedirs(screenshots_dir, exist_ok=True)
+        # --- CHANGE THE PATH TO BE LOCAL ---
+        local_dir = Path("screenshots_test") # Use a local folder
+        local_dir.mkdir(exist_ok=True)
         
-        # Generate a unique filename with a timestamp
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         file_name = f"screenshot_{timestamp}.png"
-        file_path = os.path.join(screenshots_dir, file_name)
+        file_path = local_dir / file_name
         
-        # Take the screenshot
+        print(f"DEBUG: Attempting to save to local path: {file_path}")
+        
         screenshot = pyautogui.screenshot()
         screenshot.save(file_path)
         
-        # Return a success message
-        return f"Done. I've saved the screenshot as {file_name} in your screenshots folder."
+        return f"Screenshot taken.Check for the file at {file_path}"
         
     except Exception as e:
-        print(f"Error taking screenshot: {e}")
-        return "Sorry, I ran into an error while trying to take the screenshot."
-
-
+        print(f"ERROR: The take_screenshot function failed with an exception: {e}")
+        return "Sorry, the test failed."
