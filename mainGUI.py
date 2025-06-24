@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QHB
 from PyQt5.QtCore import QThread, QObject, pyqtSignal, Qt
 from PyQt5.QtWidgets import QFileDialog
 import pyautogui
+import speech_recognition as sr
 from pathlib import Path 
 from voiceToText import listen_and_tokenize
 from textToVoice import speak
@@ -67,6 +68,67 @@ class ReminderCheckerWorker(QObject):
 
             # Wait for 60 seconds before checking again
             time.sleep(60)
+
+# In main_gui.py
+# --- CORRECTED Worker for Continuous Dictation ---
+class DictationWorker(QObject):
+    dictated_text = pyqtSignal(str)
+    finished = pyqtSignal()
+    error = pyqtSignal(str)
+
+    def __init__(self, file_path):
+        super().__init__()
+        self.file_path = file_path
+        self._is_running = True
+        self.full_text = []
+
+    def run(self):
+        r = sr.Recognizer()
+        r.energy_threshold = 3000 # Adjust this based on your mic sensitivity
+        r.dynamic_energy_threshold = False # Important for continuous listening
+
+        while self._is_running:
+            try:
+                with sr.Microphone() as source:
+                    # Listen for a phrase. Timeout helps loop continue if there's silence.
+                    audio = r.listen(source, timeout=5)
+                
+                text = r.recognize_google(audio)
+
+                # --- THIS IS THE KEY FIX ---
+                # Check if the recognized text is the stop command
+                if "stop dictation" in text.lower():
+                    print("DEBUG: 'Stop dictation' command heard. Stopping worker.")
+                    self.stop() # This will set _is_running to False
+                    break # Exit the loop immediately
+                # --- END OF FIX ---
+
+                # If it's not the stop command, process it as dictation
+                self.full_text.append(text.capitalize() + ". ")
+                self.dictated_text.emit(text.capitalize() + ". ")
+
+            except sr.WaitTimeoutError:
+                # This is expected when there's silence. Just continue the loop.
+                continue
+            except sr.UnknownValueError:
+                # Also expected. Ignore unintelligible speech and continue.
+                continue
+            except sr.RequestError as e:
+                self.error.emit(f"API Error: {e}")
+                break
+        
+        # --- Save the final file ---
+        try:
+            with open(self.file_path, 'w') as f:
+                f.write("".join(self.full_text))
+        except Exception as e:
+            self.error.emit(f"Failed to save file: {e}")
+
+        self.finished.emit()
+
+    def stop(self):
+        """Signals the worker to stop its loop."""
+        self._is_running = False
 # --- Main GUI Window ---
 
 
@@ -76,6 +138,8 @@ class VoxMateGUI(QWidget):
         self.reminder_thread=None
         self.listening_thread = None
         self.speaker_thread = None
+        self.dictation_thread = None
+        self.is_dictation_mode = False
         self.initUI()
         self.setup_thread()
         self.greet_user() # Call the new greeting method
@@ -188,6 +252,12 @@ class VoxMateGUI(QWidget):
         """
         recognized_text = ' '.join(tokens)
         self.log_box.append(f"✔ You said: {recognized_text}")
+        
+         # --- PASS THE STATE TO THE COMMAND ENGINE ---
+        response = process_command(tokens)
+        
+        if response is None: # Command was ignored (e.g., in dictation mode)
+            return
 
         # Get the response from the command engine
         response = process_command(tokens)
@@ -200,6 +270,17 @@ class VoxMateGUI(QWidget):
         elif isinstance(response, dict) and 'action' in response:
             # The response is an action dictionary
             self.handle_action(response)
+    
+    def on_dictation_update(self, text):
+        """Appends dictated text to the log box in real time."""
+        self.log_box.insertPlainText(text + ". ") # Use insertPlainText for a continuous feel
+        self.log_box.verticalScrollBar().setValue(self.log_box.verticalScrollBar().maximum())
+
+    def on_dictation_finished(self):
+        """Called when the dictation worker has stopped and saved the file."""
+        self.log_box.append("\n✔ Dictation file saved.")
+        self.status_label.setText("Ready. Click the microphone to start.")
+            
     def handle_action(self, action_dict):
         """
         Handles complex actions returned by the command engine.
@@ -211,9 +292,34 @@ class VoxMateGUI(QWidget):
         if speak_text:
             self.log_box.append(f"🤖 VoxMate: {speak_text}")
             self.start_speaking(speak_text) # This will re-enable the button when done
+        
+        if action_type == 'start_dictation_prompt':
+            default_path = Path.home() / "Documents" / f"dictation_{datetime.datetime.now().strftime('%Y-%m-%d')}.txt"
+            file_path, _ = QFileDialog.getSaveFileName(
+                self, "Save Dictation File", str(default_path), "Text Files (*.txt)"
+            )
 
+            if file_path:
+                self.is_dictation_mode = True
+                self.status_label.setText("🔴 DICTATION ACTIVE: Speak now. Say 'stop dictation' to finish.")
+                self.log_box.append(f"✍️ Dictation started. Saving to: {file_path}\n")
+
+                self.dictation_thread = QThread()
+                self.dictation_worker = DictationWorker(file_path)
+                self.dictation_worker.moveToThread(self.dictation_thread)
+
+                # Connect signals
+                self.dictation_thread.started.connect(self.dictation_worker.run)
+                self.dictation_worker.dictated_text.connect(self.on_dictation_update)
+                self.dictation_worker.finished.connect(self.on_dictation_finished)
+                self.dictation_worker.finished.connect(self.dictation_thread.quit)
+                self.dictation_worker.finished.connect(self.dictation_worker.deleteLater)
+                self.dictation_thread.finished.connect(self.dictation_thread.deleteLater)
+
+                self.dictation_thread.start()
+    
         # Then, perform the action
-        if action_type == 'prompt_save_screenshot':
+        elif action_type == 'prompt_save_screenshot':
             # We take the screenshot immediately
             screenshot_image = pyautogui.screenshot()
             if not screenshot_image:
