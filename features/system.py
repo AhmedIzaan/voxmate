@@ -7,9 +7,7 @@ from pathlib import Path  # <-- Import the Path object
 
 
 def take_screenshot():
-    """
-    TEST VERSION: Tries to save screenshot in the local project folder.
-    """
+
     try:
         # --- CHANGE THE PATH TO BE LOCAL ---
         local_dir = Path("screenshots_test") # Use a local folder
