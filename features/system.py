@@ -1,8 +1,7 @@
-
 import pyautogui
 import datetime
 import os
-from pathlib import Path  # <-- Import the Path object
+from pathlib import Path 
 
 
 
@@ -22,7 +21,7 @@ def take_screenshot():
         screenshot = pyautogui.screenshot()
         screenshot.save(file_path)
         
-        return f"Screenshot taken.Check for the file at {file_path}"
+        return f"Screenshot taken.Check for it in your local folder"
         
     except Exception as e:
         print(f"ERROR: The take_screenshot function failed with an exception: {e}")
