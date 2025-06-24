@@ -1,4 +1,4 @@
-from features import weather, dictionary
+from features import weather, dictionary,reminders
 
 def process_command(tokens):
     """
@@ -60,6 +60,25 @@ def process_command(tokens):
                 return dictionary.get_synonyms(target_word)
         else:
             return "Sure, which word are you thinking of?"
+    # --- Reminder Intent ---
+    elif 'remind' in tokens or 'reminder' in tokens or 'alarm' in tokens:
+        # Find where the actual reminder message starts
+        try:
+            # Look for "to" or "that" as a trigger for the message
+            if 'to' in tokens:
+                start_index = tokens.index('to')
+            elif 'that' in tokens:
+                start_index = tokens.index('that')
+            else: # If no trigger word, assume the whole phrase is the reminder
+                start_index = 1 # e.g., "remind me in 5 minutes"
+            
+            # Join the tokens back into a string for parsing
+            reminder_command = " ".join(tokens[start_index:])
+            
+            return reminders.set_reminder(reminder_command)
+
+        except (ValueError, IndexError):
+            return "I seem to have misunderstood the reminder. Please try again."
 
     # --- Default Fallback Response ---
     else:
