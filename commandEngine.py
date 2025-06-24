@@ -1,4 +1,5 @@
-from features import weather
+from features import weather, dictionary
+
 def process_command(tokens):
     """
     Processes a list of tokens and determines the appropriate response.
@@ -21,10 +22,10 @@ def process_command(tokens):
             if word in prepositions and i + 1 < len(tokens):
                 city = tokens[i + 1]
                 break
-        
+
         # If no preposition, assume the last word is the city
         if not city:
-             # Check if the last word isn't 'weather' itself
+            # Check if the last word isn't 'weather' itself
             if tokens[-1] != 'weather':
                 city = tokens[-1]
 
@@ -34,7 +35,32 @@ def process_command(tokens):
         else:
             return "Of course. Which city's weather would you like to know?"
 
+    # --- Dictionary Intent ---
+    elif 'synonym' in tokens or 'meaning' in tokens or 'antonym' in tokens:
+        target_word = None
+        prepositions = ['for', 'of']
+
+        # Find the word after a preposition (e.g., "synonym for happy")
+        for i, word in enumerate(tokens):
+            if word in prepositions and i + 1 < len(tokens):
+                target_word = tokens[i + 1]
+                break
+
+        # If not found, assume the word is the last one (e.g., "what is a synonym for happy")
+        if not target_word:
+            target_word = tokens[-1]
+            # A quick check to make sure the last word isn't the keyword itself
+            if target_word in ['synonym', 'antonym', 'meaning']:
+                target_word = tokens[-2]  # Assume it's the second to last word
+
+        if target_word:
+            if 'antonym' in tokens:
+                return dictionary.get_antonyms(target_word)
+            else:  # Default to synonym if 'synonym' or 'meaning' is present
+                return dictionary.get_synonyms(target_word)
+        else:
+            return "Sure, which word are you thinking of?"
+
     # --- Default Fallback Response ---
     else:
-        return "I'm sorry, I don't understand that command yet."
-
+        return "I'm sorry, I don't understand that command"
