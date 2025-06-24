@@ -3,6 +3,9 @@ import datetime
 import time
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QTextEdit, QLabel,QMessageBox
 from PyQt5.QtCore import QThread, QObject, pyqtSignal, Qt
+from PyQt5.QtWidgets import QFileDialog
+import pyautogui
+from pathlib import Path 
 from voiceToText import listen_and_tokenize
 from textToVoice import speak
 from commandEngine import process_command
@@ -180,21 +183,66 @@ class VoxMateGUI(QWidget):
     def on_recognition_finished(self, tokens):
         """
         This method is now the central hub. It gets the tokens, sends them
-        to the command engine, and speaks the response.
+        to the command engine, and handles the response, which can be
+        either a simple string or a complex action dictionary.
         """
-        # Log what the user said
         recognized_text = ' '.join(tokens)
         self.log_box.append(f"✔ You said: {recognized_text}")
 
-        # --- COMMAND ENGINE INTEGRATION ---
-        # Send the tokens to the command engine to get a response
-        response_text = process_command(tokens)
+        # Get the response from the command engine
+        response = process_command(tokens)
         
-        # Log what the assistant is about to say
-        self.log_box.append(f"🤖 VoxMate: {response_text}\n")
-        
-        # Make the assistant speak the response
-        self.start_speaking(response_text)
+        # --- NEW DISPATCHER LOGIC ---
+        if isinstance(response, str):
+            # The response is a simple string to be spoken
+            self.log_box.append(f"🤖 VoxMate: {response}\n")
+            self.start_speaking(response)
+        elif isinstance(response, dict) and 'action' in response:
+            # The response is an action dictionary
+            self.handle_action(response)
+    def handle_action(self, action_dict):
+        """
+        Handles complex actions returned by the command engine.
+        """
+        action_type = action_dict.get('action')
+        speak_text = action_dict.get('speak')
+
+        # First, speak the initial response if there is one
+        if speak_text:
+            self.log_box.append(f"🤖 VoxMate: {speak_text}")
+            self.start_speaking(speak_text) # This will re-enable the button when done
+
+        # Then, perform the action
+        if action_type == 'prompt_save_screenshot':
+            # We take the screenshot immediately
+            screenshot_image = pyautogui.screenshot()
+            if not screenshot_image:
+                self.log_box.append("❌ Error: Failed to capture screenshot image.")
+                return
+
+            # Open the "Save As" dialog
+            # The initial directory will be the user's Pictures folder
+            initial_path = Path.home() / "Pictures"
+            default_filename = f"screenshot_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.png"
+            
+            # Use QFileDialog to get the save path from the user
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Save Screenshot",
+                str(initial_path / default_filename),
+                "PNG Images (*.png);;JPEG Images (*.jpg *.jpeg)"
+            )
+            
+            # If the user selected a path (didn't click cancel)
+            if file_path:
+                try:
+                    screenshot_image.save(file_path)
+                    self.log_box.append(f"✔ Screenshot saved to: {file_path}\n")
+                    # We don't need to speak again, as the initial message was enough
+                except Exception as e:
+                    self.log_box.append(f"❌ Error saving screenshot: {e}\n")
+            else:
+                self.log_box.append("ℹ️ Screenshot save cancelled.\n")
         
     def on_recognition_error(self, error_message):
         """Runs when the worker encounters an error."""
