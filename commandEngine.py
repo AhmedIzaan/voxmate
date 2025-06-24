@@ -1,4 +1,4 @@
-from features import weather, dictionary,reminders
+from features import weather, dictionary,reminders,system
 
 def process_command(tokens):
     """
@@ -79,6 +79,9 @@ def process_command(tokens):
 
         except (ValueError, IndexError):
             return "I seem to have misunderstood the reminder. Please try again."
+    elif 'screenshot' in tokens:
+ 
+        return system.take_screenshot()
 
     # --- Default Fallback Response ---
     else:
