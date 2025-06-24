@@ -1,11 +1,15 @@
-from features import weather, dictionary,reminders,system
+from features import weather, dictionary,reminders,system,dictation
 
-def process_command(tokens):
+def process_command(tokens,is_in_dictation_mode=False):
     """
     Processes a list of tokens and determines the appropriate response.
     """
+    
     if not tokens:
         return "I didn't catch that. Please try again."
+    
+    if 'start' in tokens and 'dictation' in tokens:
+        return dictation.start_dictation()
 
     # --- Greeting Intent ---
     greeting_words = ['hello', 'hi', 'hey', 'greetings']
