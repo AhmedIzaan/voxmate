@@ -1,9 +1,12 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QTextEdit, QLabel
+import datetime
+import time
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QTextEdit, QLabel,QMessageBox
 from PyQt5.QtCore import QThread, QObject, pyqtSignal, Qt
 from voiceToText import listen_and_tokenize
 from textToVoice import speak
 from commandEngine import process_command
+from features import reminders
 # --- Worker for Threading ---
 # This class will handle the voice recognition in a separate thread
 class Worker(QObject):
@@ -35,20 +38,45 @@ class SpeakerWorker(QObject):
     def run(self):
         speak(self.text_to_speak)
         self.finished.emit()
-        
+class ReminderCheckerWorker(QObject):
+    reminder_due = pyqtSignal(dict)
+
+    def run(self):
+        """Continuously checks for due reminders every 60 seconds."""
+        while True:
+            now = datetime.datetime.now()
+            all_reminders = reminders.load_reminders()
+            due_reminders = []
+            remaining_reminders = []
+
+            for reminder in all_reminders:
+                reminder_time = datetime.datetime.fromisoformat(reminder['time'])
+                if reminder_time <= now:
+                    due_reminders.append(reminder)
+                else:
+                    remaining_reminders.append(reminder)
+            
+            if due_reminders:
+                for reminder in due_reminders:
+                    self.reminder_due.emit(reminder)
+                # Overwrite the file with only the reminders that are not yet due
+                reminders.save_reminders(remaining_reminders)
+
+            # Wait for 60 seconds before checking again
+            time.sleep(60)
 # --- Main GUI Window ---
 
 
 class VoxMateGUI(QWidget):
     def __init__(self):
         super().__init__()
-        # We need to store thread objects as instance attributes
-        # so they don't get garbage collected prematurely.
+        self.reminder_thread=None
         self.listening_thread = None
         self.speaker_thread = None
         self.initUI()
         self.setup_thread()
         self.greet_user() # Call the new greeting method
+        self.start_reminder_checker()
 
     def initUI(self):
 
@@ -98,6 +126,27 @@ class VoxMateGUI(QWidget):
         self.worker.error.connect(self.listening_thread.quit)
 
         self.listen_button.clicked.connect(self.start_listening_thread)
+    def start_reminder_checker(self):
+        """Starts the background thread that checks for reminders."""
+        self.reminder_thread = QThread()
+        self.reminder_worker = ReminderCheckerWorker()
+        self.reminder_worker.moveToThread(self.reminder_thread)
+
+        # Connect the signal from the worker to a slot in the GUI
+        self.reminder_worker.reminder_due.connect(self.on_reminder_due)
+        
+        # Start the thread
+        self.reminder_thread.started.connect(self.reminder_worker.run)
+        self.reminder_thread.start()
+    
+    def on_reminder_due(self, reminder):
+        """Handles a due reminder: speaks and shows a popup."""
+        message = f"Reminder: {reminder['message']}"
+        self.log_box.append(f"🔔 REMINDER: {reminder['message']}")
+        self.start_speaking(message)
+        
+        # Show a desktop popup notification
+        QMessageBox.information(self, "VoxMate Reminder", message)
 
     def start_speaking(self, text):
         """Starts a new thread to speak the given text."""
