@@ -118,16 +118,3 @@ set an alarm for tomorrow at 10am
 Python 3.8+
 
 A working microphone
-
-## Project Structure
-
-VoxMate/
-├── features/             # Self-contained "skills" for the assistant
-│   ├── weather.py
-│   ├── system.py
-│   └── ...
-├── main_gui.py           # Main application window, GUI logic, and threading
-├── command_engine.py     # The "brain" - processes commands and decides actions
-├── voice_input.py        # Handles speech-to-text conversion
-├── voice_output.py       # Handles text-to-speech conversion
-└── README.md             
