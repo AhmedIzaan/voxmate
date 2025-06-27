@@ -380,10 +380,7 @@ class VoxMateGUI(QWidget):
 
         # --- Stop the Recognition Thread ---
         if self.listening_thread.isRunning():
-            # This part is tricky. A hard 'quit()' can be problematic.
-            # The worker finishing its job naturally is the best way to stop the thread.
-            # For now, we rely on the worker's 'finished' or 'error' signal to quit the thread.
-            # A more aggressive stop would be self.listening_thread.quit() followed by .wait()
+        
             pass
 
     def on_recognition_finished(self, tokens):
