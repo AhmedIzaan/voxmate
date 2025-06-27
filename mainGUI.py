@@ -5,6 +5,8 @@ from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QHB
 from PyQt5.QtCore import QThread, QObject, pyqtSignal, Qt
 from PyQt5.QtWidgets import QFileDialog
 from PyQt5.QtWidgets import QDialog, QLineEdit, QFormLayout, QDialogButtonBox
+from PyQt5.QtGui import QIcon, QFont, QMovie
+from PyQt5.QtCore import QSize, QPropertyAnimation, QEasingCurve
 import pyautogui
 import speech_recognition as sr
 from pathlib import Path 
@@ -203,46 +205,76 @@ class VoxMateGUI(QWidget):
         self.start_reminder_checker()
 
     def initUI(self):
+        self.setWindowTitle('VoxMate - Your Desktop Assistant')
+        self.setGeometry(200, 200, 700, 650) # Bigger window size
 
-        # --- Window Properties ---
-        self.setWindowTitle('VoxMate - Voice Assistant')
-        self.setGeometry(300, 300, 600, 500) # New, bigger size
-
-        # --- Widgets ---
+        # --- WIDGETS ---
+        # Status Label (top)
         self.status_label = QLabel("Click the microphone to start")
+        self.status_label.setObjectName("StatusLabel")
         self.status_label.setAlignment(Qt.AlignCenter)
 
-        self.listen_button = QPushButton('🎤', self)
-        self.listen_button.setObjectName("ListenButton") 
-
-        self.log_label = QLabel("Conversation Log")
-        self.log_label.setAlignment(Qt.AlignCenter)
-
+        # Log Box (center)
         self.log_box = QTextEdit(self)
         self.log_box.setReadOnly(True)
+        self.log_box.setObjectName("LogBox")
+
+        # Microphone Button (center)
+        self.listen_button = QPushButton('🎤', self)
+        self.listen_button.setObjectName("ListenButton")
+
+        # Utility Buttons (bottom)
+        self.help_button = QPushButton("help", self)
+        self.help_button.setObjectName("TextUtilityButton") # Assign a new object name for styling
+        self.help_button.setToolTip("Show Command Manual")
+
+        self.clear_log_button = QPushButton("Clear Log", self)
+        self.clear_log_button.setObjectName("TextUtilityButton") # Use the same style
+        self.clear_log_button.setToolTip("Clear Conversation Log")
         
         self.add_app_button = QPushButton("Add App", self)
         self.add_app_button.setObjectName("AddAppButton")
+        self.add_app_button.setToolTip("Add a new application shortcut")
 
-        # --- Layouts ---
-        main_layout = QVBoxLayout()
+        # --- LAYOUTS ---
+        # Main vertical layout
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(15)
+
+        # Central layout for the microphone button
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         button_layout.addWidget(self.listen_button)
         button_layout.addStretch()
-        main_layout.addWidget(self.status_label)
-        main_layout.addLayout(button_layout)
-        main_layout.addWidget(self.log_label)
-        main_layout.addWidget(self.log_box)
-        main_layout.setStretch(0, 1); main_layout.setStretch(1, 2)
-        main_layout.setStretch(2, 1); main_layout.setStretch(3, 6)
-        self.setLayout(main_layout)
-        utility_layout = QHBoxLayout()
-        utility_layout.addStretch() # Push button to the right
-        utility_layout.addWidget(self.add_app_button)
         
+        # Bottom layout for utility buttons
+        utility_layout = QHBoxLayout()
+        utility_layout.addWidget(self.help_button)
+        utility_layout.addWidget(self.clear_log_button)
+        utility_layout.addStretch()
+        utility_layout.addWidget(self.add_app_button)
+
+        # Add widgets and layouts to the main layout
+        main_layout.addWidget(self.status_label)
+        main_layout.addWidget(self.log_box, 1) # The '1' makes it take up most space
+        main_layout.addLayout(button_layout)
         main_layout.addLayout(utility_layout)
-        self.setLayout(main_layout)
+        
+        # --- ANIMATIONS ---
+        self.pulse_animation = QPropertyAnimation(self.listen_button, b"styleSheet")
+        self.pulse_animation.setDuration(1000)
+        self.pulse_animation.setLoopCount(-1) # Loop indefinitely
+        self.pulse_animation.setKeyValueAt(0, "background-color: #0078D7; border: 5px solid #005a9e;")
+        self.pulse_animation.setKeyValueAt(0.5, "background-color: #008ae6; border: 5px solid #0078D7;")
+        self.pulse_animation.setKeyValueAt(1, "background-color: #0078D7; border: 5px solid #005a9e;")
+        
+        #  # Temporarily modify the help button creation for testing
+        # self.help_button = QPushButton(self)
+        # self.help_button.setIcon(QIcon('icons/help-circle.png'))
+        # self.help_button.setText("Manual") # <<< ADD THIS LINE
+        # self.help_button.setObjectName("UtilityButton")
+        # self.help_button.setToolTip("Show Command Manual")
 
     def setup_thread(self):
         # This setup is for the LISTENING thread
@@ -255,6 +287,11 @@ class VoxMateGUI(QWidget):
         self.worker.error.connect(self.on_recognition_error)
         self.worker.status.connect(self.update_status)
         
+            # --- NEW CONNECTIONS ---
+        self.help_button.clicked.connect(self.show_help_dialog)
+        self.clear_log_button.clicked.connect(self.log_box.clear)
+
+        
         self.worker.finished.connect(self.listening_thread.quit)
         self.worker.error.connect(self.listening_thread.quit)
 
@@ -266,6 +303,10 @@ class VoxMateGUI(QWidget):
         """Creates and shows the AddAppDialog."""
         dialog = AddAppDialog(self)
         dialog.exec_() # Use exec_() to show it as a modal dialog
+        
+    def show_help_dialog(self):
+        dialog = HelpDialog(self)
+        dialog.exec_()
     
     def start_reminder_checker(self):
         """Starts the background thread that checks for reminders."""
@@ -315,8 +356,35 @@ class VoxMateGUI(QWidget):
     def start_listening_thread(self):
         if not self.listening_thread.isRunning():
             self.listen_button.setEnabled(False)
+            
             self.log_box.append("▶ You clicked Listen...")
             self.listening_thread.start()
+            self.pulse_animation.start()
+    def stop_listening_process(self):
+        """
+        Stops the audio stream and recognition threads cleanly, and resets UI elements.
+        """
+        # --- Stop the Animation and Reset the Button ---
+        if self.pulse_animation.state() == QPropertyAnimation.Running:
+            self.pulse_animation.stop()
+        self.listen_button.setStyleSheet("") # Resets to the stylesheet default
+
+        # --- Stop the Waveform Thread (if you still have it) ---
+        # If you removed the waveform feature, you can delete these lines.
+        if hasattr(self, 'audio_stream_thread') and self.audio_stream_thread.isRunning():
+            self.audio_stream_worker.stop()
+            self.audio_stream_thread.quit()
+            self.audio_stream_thread.wait()
+            if hasattr(self, 'waveform_widget'):
+                 self.waveform_widget.clear_waveform()
+
+        # --- Stop the Recognition Thread ---
+        if self.listening_thread.isRunning():
+            # This part is tricky. A hard 'quit()' can be problematic.
+            # The worker finishing its job naturally is the best way to stop the thread.
+            # For now, we rely on the worker's 'finished' or 'error' signal to quit the thread.
+            # A more aggressive stop would be self.listening_thread.quit() followed by .wait()
+            pass
 
     def on_recognition_finished(self, tokens):
         """
@@ -324,6 +392,7 @@ class VoxMateGUI(QWidget):
         to the command engine, and handles the response, which can be
         either a simple string or a complex action dictionary.
         """
+        self.stop_listening_process()
         recognized_text = ' '.join(tokens)
         self.log_box.append(f"✔ You said: {recognized_text}")
         
@@ -426,6 +495,7 @@ class VoxMateGUI(QWidget):
         
     def on_recognition_error(self, error_message):
         """Runs when the worker encounters an error."""
+        self.stop_listening_process()
         self.log_box.append(f"❌ Error: {error_message}\n")
         self.status_label.setText("An error occurred. Ready to try again.")
         self.listen_button.setEnabled(True)
@@ -443,57 +513,160 @@ class VoxMateGUI(QWidget):
 # --- Stylesheet ---
 # A dark, modern theme for our app
 dark_stylesheet = """
-    QWidget {
-        background-color: #2b2b2b;
-        color: #f0f0f0;
-        font-family: "Segoe UI", Arial, sans-serif;
-    }
+QWidget {
+    background-color: #1c1c1e;
+    color: #f0f0f0;
+    font-family: "Segoe UI", Arial, sans-serif;
+}
 
-    /* Style for the round microphone button */
-    QPushButton#ListenButton {
-        background-color: #0078D7; /* A nice blue */
-        color: white;
-        min-width: 100px;
-        max-width: 100px;
-        min-height: 100px;
-        max-height: 100px;
-        border-radius: 50px; /* half of width/height */
-        border: none;
-        font-size: 48px; /* Make the microphone icon big */
-        padding-bottom: 5px; /* Adjust icon position slightly */
-    }
-    QPushButton#ListenButton:hover {
-        background-color: #008ae6; /* Lighter blue on hover */
-    }
-    QPushButton#ListenButton:pressed {
-        background-color: #005a9e; /* Darker blue when clicked */
-    }
-    QPushButton#ListenButton:disabled {
-        background-color: #555555; /* Grey when disabled */
-    }
-    
-    QTextEdit {
-        background-color: #1e1e1e;
-        border: 1px solid #444;
-        border-radius: 8px;
-        font-size: 14px;
-        padding: 8px;
-    }
-    
-    QLabel {
-        font-size: 16px;
-    }
-    
-    QLabel#log_label { /* You can style specific labels if needed */
-        font-weight: bold;
-        margin-top: 10px;
-    }
-    
-    QPushButton#AddAppButton {
-    background-color: #4CAF50; /* A green color */
-    max-width: 100px;
+/* Main Microphone Button */
+QPushButton#ListenButton {
+    background-color: #0078D7;
+    color: white;
+    min-width: 120px; max-width: 120px;
+    min-height: 120px; max-height: 120px;
+    border-radius: 60px;
+    border: 5px solid #005a9e;
+    font-size: 56px;
+    padding-bottom: 5px;
+}
+QPushButton#ListenButton:hover {
+    background-color: #008ae6;
+}
+QPushButton#ListenButton:pressed {
+    background-color: #005a9e;
+}
+QPushButton#ListenButton:disabled {
+    background-color: #555;
+    border: 5px solid #444;
+}
+
+/* Top Status Label */
+QLabel#StatusLabel {
+    font-size: 18px;
+    font-weight: bold;
+    color: #e0e0e0;
+    padding: 10px;
+}
+
+/* Main Log Box */
+QTextEdit#LogBox {
+    background-color: #2a2a2c;
+    border: 1px solid #444;
+    border-radius: 8px;
+    font-size: 14px;
+    padding: 10px;
+    color: #cccccc;
+}
+
+/* --- NEW STYLE FOR TEXT-BASED UTILITY BUTTONS (Help, Clear Log) --- */
+QPushButton#TextUtilityButton {
+    background-color: #3a3a3c;
+    border: 1px solid #555;
+    color: #e0e0e0;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 8px 16px;
+    border-radius: 5px;
+}
+QPushButton#TextUtilityButton:hover {
+    background-color: #4a4a4c;
+    border: 1px solid #666;
+}
+QPushButton#TextUtilityButton:pressed {
+    background-color: #2a2a2c;
+}
+
+/* Style for the 'Add App' button, which can be different */
+QPushButton#AddAppButton {
+    background-color: #004c8a; /* A different shade of blue */
+    border: 1px solid #0078D7;
+    color: #f0f0f0;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 8px 16px;
+    border-radius: 5px;
+}
+QPushButton#AddAppButton:hover {
+    background-color: #005a9e;
 }
 """
+class HelpDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("VoxMate - Command Manual")
+        self.setFixedSize(600, 500)
+
+        layout = QVBoxLayout(self)
+        text_area = QTextEdit(self)
+        text_area.setReadOnly(True)
+        text_area.setHtml(self.get_help_html())
+        layout.addWidget(text_area)
+
+    def get_help_html(self):
+        """Returns the user manual content as styled HTML."""
+        # We use HTML to style the text with headings, lists, and bold text.
+        return """
+        <html>
+        <body style='font-family: Segoe UI, sans-serif; font-size: 14px; color: #f0f0f0;'>
+            <h1 style='color: #00BFFF;'>VoxMate Command Manual</h1>
+
+            <h2 style='color: #4CAF50;'>Core Commands</h2>
+            <p>Click the main microphone button (🎤) to speak a command.</p>
+
+            <h2 style='color: #4CAF50;'>Feature List</h2>
+            
+            <h3>Weather</h3>
+            <p>Get the weather for any city.</p>
+            <ul>
+                <li><i>"What is the weather in London?"</i></li>
+                <li><i>"Tell me the weather for Tokyo"</i></li>
+            </ul>
+
+            <h3>Application Launcher</h3>
+            <p>Open configured applications. Use the 'Add App' button to teach VoxMate new apps.</p>
+            <ul>
+                <li><i>"Open chrome"</i></li>
+                <li><i>"Launch vscode"</i></li>
+            </ul>
+
+            <h3>Dictionary</h3>
+            <p>Find synonyms or antonyms for a word.</p>
+            <ul>
+                <li><i>"What is a synonym for happy?"</i></li>
+                <li><i>"Find an antonym for good"</i></li>
+            </ul>
+
+            <h3>Reminders</h3>
+            <p>Set a reminder using natural language.</p>
+            <ul>
+                <li><i>"Remind me to check the oven in one minute"</i></li>
+                <li><i>"Set an alarm for tomorrow at 10am"</i></li>
+            </ul>
+            
+            <h3>YouTube Player</h3>
+            <p>Searches YouTube and opens the results page.</p>
+            <ul>
+                <li><i>"Play Bella Ciao"</i></li>
+                <li><i>"Play Queen Bohemian Rhapsody"</i></li>
+            </ul>
+
+            <h3>Screenshot</h3>
+            <p>Takes a screenshot and asks you where to save it.</p>
+            <ul>
+                <li><i>"Take a screenshot"</i></li>
+            </ul>
+
+            <h3>Dictation Mode</h3>
+            <p>Transcribe your speech to a text file.</p>
+            <ul>
+                <li><b>To start:</b> <i>"Start dictation"</i></li>
+                <li><b>To stop:</b> <i>"Stop dictation"</i> (speak this into the microphone)</li>
+            </ul>
+            
+        </body>
+        </html>
+        """
 
 # --- Main Execution ---
 if __name__ == '__main__':
