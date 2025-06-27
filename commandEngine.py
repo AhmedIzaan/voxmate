@@ -10,6 +10,30 @@ def process_command(tokens,is_in_dictation_mode=False):
     
     if 'start' in tokens and 'dictation' in tokens:
         return dictation.start_dictation()
+    
+    if 'open' in tokens or 'launch' in tokens:
+        # Determine the trigger word and its position
+        trigger_word = 'open' if 'open' in tokens else 'launch'
+        start_index = tokens.index(trigger_word) + 1
+
+        if start_index < len(tokens):
+            app_name_parts = tokens[start_index:]
+            
+            # First try with spaces as most app names are registered this way
+            spaced_app_name = " ".join(app_name_parts)
+            response = system.open_application(spaced_app_name)
+            
+            # Only try without spaces if first attempt failed (response doesn't start with "Opening")
+            if not response.startswith("Opening"):
+                combined_app_name = "".join(app_name_parts)
+                # Only try combined version if it's different
+                if combined_app_name != spaced_app_name:
+                    response = system.open_application(combined_app_name)
+            
+            return response
+        else:
+            return "Please specify which application you want to open."
+   
 
     # --- Greeting Intent ---
     greeting_words = ['hello', 'hi', 'hey', 'greetings']
@@ -86,6 +110,7 @@ def process_command(tokens,is_in_dictation_mode=False):
     elif 'screenshot' in tokens:
  
         return system.take_screenshot()
+    
 
     # --- Default Fallback Response ---
     else:
