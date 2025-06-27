@@ -1,4 +1,4 @@
-from features import weather, dictionary,reminders,system,dictation
+from features import weather, dictionary,reminders,system,dictation,web
 
 def process_command(tokens,is_in_dictation_mode=False):
     """
@@ -110,6 +110,19 @@ def process_command(tokens,is_in_dictation_mode=False):
     elif 'screenshot' in tokens:
  
         return system.take_screenshot()
+    
+    elif 'play' in tokens:
+        # Find where the song name starts
+        try:
+            start_index = tokens.index('play') + 1
+            if start_index < len(tokens):
+                song_name_parts = tokens[start_index:]
+                song_name = " ".join(song_name_parts)
+                return web.play_on_youtube(song_name)
+            else:
+                return "You need to tell me what song to play."
+        except (ValueError, IndexError):
+            return "I seem to have misunderstood the song name. Please try again."
     
 
     # --- Default Fallback Response ---
