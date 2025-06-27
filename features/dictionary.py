@@ -1,4 +1,4 @@
-# features/dictionary.py
+
 from nltk.corpus import wordnet
 
 def get_synonyms(word):

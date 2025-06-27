@@ -1,7 +1,7 @@
 
 import requests
 
-# --- IMPORTANT: PASTE YOUR API KEY HERE ---
+
 def get_weather_data(city_name):
     """
     Calls the OpenWeatherMap API to get weather data for a specific city.

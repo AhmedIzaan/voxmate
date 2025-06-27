@@ -1,4 +1,4 @@
-# features/web.py
+
 import webbrowser
 import urllib.parse
 

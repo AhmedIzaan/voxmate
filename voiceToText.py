@@ -1,6 +1,6 @@
 import speech_recognition as sr
 
-# The function now accepts an optional 'status_emitter' to report progress
+
 def listen_and_tokenize(status_emitter=None):
     """
     Listens for a voice command, converts it to text, and returns a list of tokens.
@@ -31,7 +31,7 @@ def listen_and_tokenize(status_emitter=None):
         text = r.recognize_google(audio)
         tokens = text.lower().split()
         
-        # We don't print here anymore. The GUI will display the result.
+       
         return tokens
 
     except sr.UnknownValueError:
