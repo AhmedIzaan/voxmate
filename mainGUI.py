@@ -4,13 +4,14 @@ import time
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QTextEdit, QLabel,QMessageBox
 from PyQt5.QtCore import QThread, QObject, pyqtSignal, Qt
 from PyQt5.QtWidgets import QFileDialog
+from PyQt5.QtWidgets import QDialog, QLineEdit, QFormLayout, QDialogButtonBox
 import pyautogui
 import speech_recognition as sr
 from pathlib import Path 
 from voiceToText import listen_and_tokenize
 from textToVoice import speak
 from commandEngine import process_command
-from features import reminders
+from features import reminders,system
 # --- Worker for Threading ---
 # This class will handle the voice recognition in a separate thread
 class Worker(QObject):
@@ -129,6 +130,62 @@ class DictationWorker(QObject):
     def stop(self):
         """Signals the worker to stop its loop."""
         self._is_running = False
+
+
+class AddAppDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Add New Application")
+        
+        # Widgets
+        self.nickname_input = QLineEdit(self)
+        self.path_input = QLineEdit(self)
+        self.browse_button = QPushButton("Browse...", self)
+        
+        # Layout
+        form_layout = QFormLayout(self)
+        form_layout.addRow("Nickname (e.g., 'chrome'):", self.nickname_input)
+        
+        path_layout = QHBoxLayout()
+        path_layout.addWidget(self.path_input)
+        path_layout.addWidget(self.browse_button)
+        form_layout.addRow("Application Path:", path_layout)
+        
+        # Dialog Buttons (OK/Cancel)
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
+        form_layout.addRow(self.button_box)
+        
+        # Connections
+        self.browse_button.clicked.connect(self.browse_file)
+        self.button_box.accepted.connect(self.save_and_accept)
+        self.button_box.rejected.connect(self.reject)
+
+    def browse_file(self):
+        """Opens a file dialog to select an application executable."""
+        # The filter helps users find executables
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Application", str(Path.home()), "Applications (*.exe *.app);;All files (*)"
+        )
+        if file_path:
+            self.path_input.setText(file_path)
+            
+    def save_and_accept(self):
+        """Saves the new app path to the JSON file before closing."""
+        nickname = self.nickname_input.text().lower().strip()
+        path = self.path_input.text().strip()
+        
+        if not nickname or not path:
+            QMessageBox.warning(self, "Input Error", "Both nickname and path are required.")
+            return
+
+        # Load, update, and save the data
+        app_paths = system.load_app_paths()
+        app_paths[nickname] = path
+        system.save_app_paths(app_paths)
+        
+        QMessageBox.information(self, "Success", f"'{nickname}' has been saved successfully.")
+        self.accept() # This closes the dialog
+
 # --- Main GUI Window ---
 
 
@@ -163,6 +220,9 @@ class VoxMateGUI(QWidget):
 
         self.log_box = QTextEdit(self)
         self.log_box.setReadOnly(True)
+        
+        self.add_app_button = QPushButton("Add App", self)
+        self.add_app_button.setObjectName("AddAppButton")
 
         # --- Layouts ---
         main_layout = QVBoxLayout()
@@ -176,6 +236,12 @@ class VoxMateGUI(QWidget):
         main_layout.addWidget(self.log_box)
         main_layout.setStretch(0, 1); main_layout.setStretch(1, 2)
         main_layout.setStretch(2, 1); main_layout.setStretch(3, 6)
+        self.setLayout(main_layout)
+        utility_layout = QHBoxLayout()
+        utility_layout.addStretch() # Push button to the right
+        utility_layout.addWidget(self.add_app_button)
+        
+        main_layout.addLayout(utility_layout)
         self.setLayout(main_layout)
 
     def setup_thread(self):
@@ -193,6 +259,14 @@ class VoxMateGUI(QWidget):
         self.worker.error.connect(self.listening_thread.quit)
 
         self.listen_button.clicked.connect(self.start_listening_thread)
+        
+        self.add_app_button.clicked.connect(self.open_add_app_dialog)
+    
+    def open_add_app_dialog(self):
+        """Creates and shows the AddAppDialog."""
+        dialog = AddAppDialog(self)
+        dialog.exec_() # Use exec_() to show it as a modal dialog
+    
     def start_reminder_checker(self):
         """Starts the background thread that checks for reminders."""
         self.reminder_thread = QThread()
@@ -414,6 +488,11 @@ dark_stylesheet = """
         font-weight: bold;
         margin-top: 10px;
     }
+    
+    QPushButton#AddAppButton {
+    background-color: #4CAF50; /* A green color */
+    max-width: 100px;
+}
 """
 
 # --- Main Execution ---
